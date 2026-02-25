@@ -14,6 +14,7 @@ SEP = ";"
 ARQ_IMPRESSORAS = "impressoras.csv"
 ARQ_FILAMENTOS = "filamentos.csv"
 ARQ_HISTORICO = "historico_precos.csv"
+ARQ_VENDAS = "vendas.csv"
 
 # =========================
 # FUNÇÕES UTILITÁRIAS
@@ -32,6 +33,21 @@ def carregar_csv(arquivo, colunas):
 def salvar_csv(df, arquivo):
     df.to_csv(arquivo, index=False, sep=SEP, encoding=ENC)
 
+def carregar_vendas():
+    colunas = [
+        "ID",
+        "Data",
+        "Nome da Peça",
+        "Cor",
+        "Cliente",
+        "Valor",
+        "Forma de Pagamento",
+        "Pago",
+        "Custo",
+        "Lucro"
+    ]
+    return carregar_csv(ARQ_VENDAS, colunas)
+
 
 # =========================
 # SIDEBAR
@@ -40,7 +56,7 @@ def salvar_csv(df, arquivo):
 st.sidebar.title("⚙️ Menu")
 menu = st.sidebar.radio(
     "Navegação",
-    ["📦 Precificar", "🖨️ Impressoras", "🧵 Filamentos", "📊 Histórico", "📈 Dashboard"]
+    ["📦 Precificar", "🖨️ Impressoras", "🧵 Filamentos", "📊 Histórico", "📈 Dashboard", "💰 Vendas"]
 )
 
 # =========================
@@ -233,3 +249,119 @@ elif menu == "📈 Dashboard":
         st.bar_chart(
             df.groupby("Produto")["Preço Sugerido (R$)"].mean()
         )
+
+# =========================
+# VENDAS
+# =========================
+elif menu == "💰 Vendas":
+
+    st.title("📦 Registro de Vendas")
+
+    df_vendas = carregar_vendas()
+
+    # ---------- SESSION STATE ----------
+    if "nome_peca" not in st.session_state:
+        st.session_state.nome_peca = ""
+    if "cor" not in st.session_state:
+        st.session_state.cor = ""
+    if "cliente" not in st.session_state:
+        st.session_state.cliente = ""
+    if "valor" not in st.session_state:
+        st.session_state.valor = 0.0
+    if "custo" not in st.session_state:
+        st.session_state.custo = 0.0
+
+    with st.form("form_venda"):
+
+        data = st.date_input("Data")
+
+        nome_peca = st.text_input(
+            "Nome da Peça",
+            key="nome_peca"
+        )
+
+        cor = st.text_input(
+            "Cor da Peça",
+            key="cor"
+        )
+
+        cliente = st.text_input(
+            "Cliente",
+            key="cliente"
+        )
+
+        valor = st.number_input(
+            "Valor (R$)",
+            min_value=0.0,
+            format="%.2f",
+            key="valor"
+        )
+
+        custo = st.number_input(
+            "Custo (R$)",
+            min_value=0.0,
+            format="%.2f",
+            key="custo"
+        )
+
+        forma_pg = st.selectbox(
+            "Forma de Pagamento",
+            ["Pix", "Dinheiro", "Cartão Crédito", "Cartão Débito"]
+        )
+
+        pago = st.selectbox(
+            "Está pago?",
+            ["Sim", "Não"]
+        )
+
+        salvar = st.form_submit_button("Registrar Venda")
+
+    # ---------- VALIDAÇÃO ----------
+    if salvar:
+
+        if (
+            st.session_state.nome_peca.strip() == "" or
+            st.session_state.cor.strip() == "" or
+            st.session_state.cliente.strip() == "" or
+            st.session_state.valor <= 0 or
+            st.session_state.custo < 0
+        ):
+            st.error("Preencha todos os campos corretamente antes de registrar a venda.")
+
+        else:
+            novo_id = len(df_vendas) + 1
+            lucro = st.session_state.valor - st.session_state.custo
+
+            nova_venda = {
+                "ID": novo_id,
+                "Data": data,
+                "Nome da Peça": st.session_state.nome_peca,
+                "Cor": st.session_state.cor,
+                "Cliente": st.session_state.cliente,
+                "Valor": st.session_state.valor,
+                "Forma de Pagamento": forma_pg,
+                "Pago": pago,
+                "Custo": st.session_state.custo,
+                "Lucro": lucro
+            }
+
+            df_vendas = pd.concat(
+                [df_vendas, pd.DataFrame([nova_venda])],
+                ignore_index=True
+            )
+
+            salvar_csv(df_vendas, ARQ_VENDAS)
+
+            st.success("Venda registrada com sucesso!")
+
+            # LIMPA CAMPOS APÓS SALVAR
+            st.session_state.nome_peca = ""
+            st.session_state.cor = ""
+            st.session_state.cliente = ""
+            st.session_state.valor = 0.0
+            st.session_state.custo = 0.0
+
+    st.subheader("📋 Vendas Registradas")
+    st.dataframe(df_vendas, use_container_width=True)
+
+# python -m streamlit run app_precificador_3d.py
