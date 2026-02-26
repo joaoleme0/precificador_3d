@@ -15,6 +15,7 @@ ARQ_IMPRESSORAS = "impressoras.csv"
 ARQ_FILAMENTOS = "filamentos.csv"
 ARQ_HISTORICO = "historico_precos.csv"
 ARQ_VENDAS = "vendas.csv"
+ARQ_ENCOMENDAS = "encomendas.csv"
 
 # =========================
 # FUNÇÕES UTILITÁRIAS
@@ -48,6 +49,20 @@ def carregar_vendas():
     ]
     return carregar_csv(ARQ_VENDAS, colunas)
 
+def carregar_encomendas():
+    colunas = [
+        "ID",
+        "Data Registro",
+        "Produto",
+        "Quantidade",
+        "Cores",
+        "Prazo Entrega",
+        "Link Arquivo",
+        "Observacoes",
+        "Imagem"
+    ]
+    return carregar_csv(ARQ_ENCOMENDAS, colunas)
+
 
 # =========================
 # SIDEBAR
@@ -56,7 +71,7 @@ def carregar_vendas():
 st.sidebar.title("⚙️ Menu")
 menu = st.sidebar.radio(
     "Navegação",
-    ["📦 Precificar", "🖨️ Impressoras", "🧵 Filamentos", "📊 Histórico", "📈 Dashboard", "💰 Vendas"]
+    ["📦 Precificar", "🖨️ Impressoras", "🧵 Filamentos", "📊 Histórico", "📈 Dashboard", "💰 Vendas", "📝 Encomendas"]
 )
 
 # =========================
@@ -363,5 +378,88 @@ elif menu == "💰 Vendas":
 
     st.subheader("📋 Vendas Registradas")
     st.dataframe(df_vendas, use_container_width=True)
+
+# =========================
+# ENCOMENDAS
+# =========================
+elif menu == "📝 Encomendas":
+
+    st.title("📝 Controle de Encomendas")
+
+    df_enc = carregar_encomendas()
+
+    with st.form("form_encomenda", clear_on_submit=True):
+
+        produto = st.text_input("Nome do Produto")
+
+        quantidade = st.number_input(
+            "Quantidade",
+            min_value=1,
+            step=1
+        )
+
+        cores_disponiveis = [
+            "Preto", "Branco", "Vermelho", "Azul",
+            "Verde", "Amarelo", "Cinza", "Rosa",
+            "Laranja", "Roxo"
+        ]
+
+        cores = st.multiselect(
+            "Selecione as Cores",
+            cores_disponiveis
+        )
+
+        prazo = st.date_input("Prazo de Entrega")
+
+        link = st.text_input("Link do Arquivo")
+
+        observacoes = st.text_area("Observações")
+
+        imagem = st.file_uploader(
+            "Upload de Foto/Print do Produto",
+            type=["png", "jpg", "jpeg"]
+        )
+
+        salvar = st.form_submit_button("Registrar Encomenda")
+
+    # ---------- VALIDAÇÃO ----------
+    if salvar:
+
+        if produto.strip() == "" or len(cores) == 0:
+            st.error("Preencha pelo menos o nome do produto e selecione uma cor.")
+        else:
+            novo_id = len(df_enc) + 1
+
+            nome_imagem = ""
+            if imagem is not None:
+                nome_imagem = f"imagem_{novo_id}.png"
+                with open(nome_imagem, "wb") as f:
+                    f.write(imagem.getbuffer())
+
+            nova_encomenda = {
+                "ID": novo_id,
+                "Data Registro": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                "Produto": produto,
+                "Quantidade": quantidade,
+                "Cores": ", ".join(cores),
+                "Prazo Entrega": prazo,
+                "Link Arquivo": link,
+                "Observacoes": observacoes,
+                "Imagem": nome_imagem
+            }
+
+            df_enc = pd.concat(
+                [df_enc, pd.DataFrame([nova_encomenda])],
+                ignore_index=True
+            )
+
+            salvar_csv(df_enc, ARQ_ENCOMENDAS)
+
+            st.success("Encomenda registrada com sucesso!")
+
+            st.rerun()
+
+    st.subheader("📋 Encomendas Registradas")
+    st.dataframe(df_enc, use_container_width=True)
 
 # python -m streamlit run app_precificador_3d.py
